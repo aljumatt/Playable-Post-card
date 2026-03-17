@@ -1,3 +1,6 @@
+//Zander Matthews
+//~20 hours
+//no sources used for code
 
 //create game object
 let config = {

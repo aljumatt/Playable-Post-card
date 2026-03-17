@@ -8,6 +8,7 @@ let config = {
     },
     width: 640,
     height: 480,
+    backgroundColor: '#ffffff',
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -18,7 +19,7 @@ let config = {
             debug: false
         }
     },
-    scene: [CardFront, CardBack]
+    scene: [LoaderScene, CardFront1, CardFront2, CardBack]
 }
 
 let game = new Phaser.Game(config)

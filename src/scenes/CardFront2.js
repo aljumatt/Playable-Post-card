@@ -1,26 +1,17 @@
-class CardFront extends Phaser.Scene {
+class CardFront2 extends Phaser.Scene {
     constructor() {
-        super('cardFrontScene')
-    }
-
-
-    preload() {
-        //load all images
-        this.load.image('cardFrontImg', './assets/images/postcard.png')
-        this.load.spritesheet('resultImg', './assets/images/result.png', { frameWidth: 300, frameHeight: 100 })
-        this.load.image('flipButton', 'assets/images/flip_over.png')
-        this.load.image('cardBackImg', 'assets/images/postcard_back.png')
+        super('cardFrontScene2')
     }
 
 
     init() {
         //set vars for default
         this.slotStatus = [-1, -1, -1]
-        this.words = ['GLOW', 'FLOAT', 'YELL']
+        this.words = ['ROCKET', 'HORSE', 'TRAIN']
         this.slotPositions = [
-            { x: 280, y: 175 },
-            { x: 90, y: 265 },
-            { x: 145, y: 300 }
+            { x: 150, y: 188 },
+            { x: 459, y: 221 },
+            { x: 438, y: 322 }
         ]
         this.combinations = {
             "0,1,2": 0,
@@ -28,12 +19,20 @@ class CardFront extends Phaser.Scene {
             "1,0,2": 2,
             "1,2,0": 3,
             "2,0,1": 4,
-            "2,1,0": 5
+            "2,1,0": 5 //here
         }
+
+        this.dragParticles = new Array(3)
+        this.isFullCur = false
     }
 
 
     create() {
+        //create sound effects
+        this.placeSFX = this.sound.add('placeSFX')
+        this.removeSFX = this.sound.add('removeSFX')
+        this.imageChangeStateSFX = this.sound.add('imageChangeStateSFX')
+
         //spawn background card image
         this.cardFrontImg = this.add.sprite(width/2, height/2, 'cardFrontImg')
 
@@ -48,27 +47,30 @@ class CardFront extends Phaser.Scene {
 
 
         //create the actual story text
-        const story = "Dear Leigh,\n\n I went on a walk the other day and saw a turtle. The turtle stoped to ______ in the middle of the field. Then suddenly, without warning, it started to ______ towards the sky. Finaly it ______ until the stars came out."
-        this.add.text(width/2, height/2-50, story, {fontSize: '32px',
+        const story = "Dear Leigh,\n\n I had the craziest morning, there was a turtle in my front yard and it was standing in front of a ________. The turtle then punched it till it fell over, and started riding a ________ that was nearby. Once I could no longer see the turtle and though the insanity was over, I saw a cat blow past me riding a ________."
+        let storyText = this.add.text(width/2, height/2-50, story, {
+            fontSize: '27px',
             fill: '#000000', wordWrap: {
-                width: 600,
+                width: 580,
                 useAdvancedWrap: true
-        }}).setOrigin(0.5)
-
+            },
+            fontFamily: 'laviFont'
+        }).setOrigin(0.5)
+        //storyText.scale = 0.5
 
         //create the places where the text locks into place
         this.slotPositions.forEach((pos, index) => {
-            let zone = this.add.zone(pos.x, pos.y, 120, 30).setRectangleDropZone(120, 30)
+            let zone = this.add.zone(pos.x, pos.y, 140, 50).setRectangleDropZone(140, 50)
             zone.setData('slotIndex', index)
-    
-            // Visual outline for test
-            //this.add.graphics().lineStyle(2, 0xffffff).strokeRect(pos.x - 60, pos.y - 15, 120, 30)
+            
+            // Visual outline for testing
+            //this.add.graphics().lineStyle(2, 0xffffff).strokeRect(pos.x - 70, pos.y - 25, 140, 50)
         })
 
 
 
         //create result sprite
-        this.resultSprite = this.add.sprite(width / 2, height-height/6, 'resultImg', 0);
+        this.resultSprite = this.add.sprite(width / 2, height-height/6, 'resultImg2', 0);
         this.resultSprite.setVisible(false);
 
         //create text objects
@@ -76,6 +78,25 @@ class CardFront extends Phaser.Scene {
         
 
         //setting what happends when drag and drop
+        this.input.on('dragenter', (pointer, gameObject, dropZone) => {
+            const slotIdx = dropZone.getData('slotIndex');
+            if (this.slotStatus[slotIdx] === -1) {
+                this.tweens.add({
+                    targets: gameObject,
+                    scale: 1.2,
+                    duration: 100,
+                    ease: 'Back.easeOut'
+                })
+            }
+        })
+        this.input.on('dragleave', (pointer, gameObject, dropZone) => {
+            this.tweens.add({
+                targets: gameObject,
+                scale: 1,
+                duration: 100,
+                ease: 'Back.easeOut'
+            })
+        });
         this.input.on('dragstart', (pointer, gameObject) => {
             gameObject.setData('startX', gameObject.x)
             gameObject.setData('startY', gameObject.y)
@@ -84,6 +105,7 @@ class CardFront extends Phaser.Scene {
             if (currentSlot !== -1) {
                 this.slotStatus[currentSlot] = -1
                 this.updateResultSprite()
+                this.removeSFX.play()
             }
 
             gameObject.body.setAllowGravity(false)
@@ -92,6 +114,8 @@ class CardFront extends Phaser.Scene {
         this.input.on('drag', (pointer, gameObject, dragX, dragY) => {
             gameObject.x = dragX
             gameObject.y = dragY
+            
+            this.dragParticles[gameObject.getData('wordIndex')].emitParticleAt(gameObject.x, gameObject.y, 1)
         })
         this.input.on('dragend', (pointer, gameObject, dropped) => {
             if (!dropped) {
@@ -110,20 +134,61 @@ class CardFront extends Phaser.Scene {
             gameObject.x = dropZone.x
             gameObject.y = dropZone.y
             gameObject.body.setAllowGravity(false)
-    
             this.slotStatus[slotIdx] = wordIdx
             this.updateResultSprite()
+            
+            //effects
+            this.placeSFX.play()
+            let tweenChain = this.tweens.chain({
+                targets: gameObject,
+                ease: 'Back.easeOut',
+                tweens : [
+                    {
+                        scale: 1.4,
+                        duration: 100,
+                    },
+                    {
+                        scale: 1,
+                        duration: 60,
+                    }
+                ]
+            })
+            tweenChain.play()
         })
     }
 
 
     create_dragable_text(word_index, input_x, input_y) {
         //create text
-        let newText = this.add.text(input_x, input_y, this.words[word_index], { fontSize: '32px', fill: '#002f14' }).setInteractive({useHandCursor: true})
+        let newText = this.add.text(input_x, input_y, this.words[word_index], {
+            fontSize: '20px',
+            fill: '#2b5259',
+            fontFamily: 'architectsDaughterFont'
+        }).setInteractive({useHandCursor: true})
         newText.setOrigin(0.5)
 
         //add metadata
         newText.setData('wordIndex', word_index)
+
+        //create paricle
+        let particleKey = 'particle' + word_index.toString();
+        if (!this.textures.exists(particleKey)) {
+            let tempText = this.add.text(0, 0, this.words[word_index], {
+                fontSize: '20px',
+                fill: '#2b5259', // Use full white here; use particle 'tint' for transparency
+                fontFamily: 'architectsDaughterFont'
+            }).setVisible(false); // Hide it immediately
+        this.textures.addCanvas(particleKey, tempText.canvas);
+        tempText.destroy();
+        }
+        this.dragParticles[word_index] = this.add.particles(0, 0, particleKey, {
+            speed: 0,
+            scale: 1,
+            blendMode: 'NORMAL',
+            lifespan: 100,
+            alpha: {start: 0.1, end: 0},
+            emitting: false,
+        })
 
         //add physics
         this.physics.add.existing(newText)
@@ -159,10 +224,16 @@ class CardFront extends Phaser.Scene {
                     duration: 300,
                     ease: 'Back.easeOut'
                 });
+                this.isFullCur = true
+                this.imageChangeStateSFX.play()
             }
         } else {
             this.resultSprite.setVisible(false);
             this.flipButton.setVisible(false)
+            if (this.isFullCur) {
+                this.imageChangeStateSFX.play()
+                this.isFullCur = false
+            }
         }
     }
 }
